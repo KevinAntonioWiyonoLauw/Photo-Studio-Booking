@@ -10,18 +10,73 @@ class SlotController {
         return res.status(400).json({ message: 'Studio ID and date are required' });
       }
       
-      // Updated to use is_booked field
+      // Fixed the typo here - changed 'falsei' to 'false'
       const result = await pool.query(
         'SELECT * FROM slots WHERE studio_id = $1 AND date = $2 AND is_booked = false ORDER BY start_time',
         [studioId, date]
       );
       
-      res.json(result.rows);
+      // If no slots are found, generate them automatically
+      if (result.rows.length === 0) {
+        // Generate slots for this studio and date
+        await this.ensureSlotsExist(studioId, date);
+        
+        // Query again after generating
+        const newResult = await pool.query(
+          'SELECT * FROM slots WHERE studio_id = $1 AND date = $2 AND is_booked = false ORDER BY start_time',
+          [studioId, date]
+        );
+        
+        res.json(newResult.rows);
+      } else {
+        res.json(result.rows);
+      }
     } catch (error) {
       console.error('Error getting available slots:', error);
       res.status(500).json({ message: 'Server error' });
     }
   }
+  
+  // Helper method to ensure slots exist for a given studio and date
+  async ensureSlotsExist(studioId, date) {
+    try {
+      // Check if studio exists
+      const studioCheck = await pool.query('SELECT * FROM studios WHERE id = $1', [studioId]);
+      if (studioCheck.rows.length === 0) {
+        throw new Error('Studio not found');
+      }
+      
+      // Get studio opening/closing hours or use defaults
+      const studio = studioCheck.rows[0];
+      const openingHour = studio.opening_hour || 9;  // Default opening at 9 AM
+      const closingHour = studio.closing_hour || 18; // Default closing at 6 PM
+      
+      // Begin transaction
+      await pool.query('BEGIN');
+      
+      try {
+        // Generate hourly slots from opening to closing hour
+        for (let hour = openingHour; hour < closingHour; hour++) {
+          await pool.query(
+            'INSERT INTO slots (studio_id, date, start_time, end_time, is_booked) VALUES ($1, $2, $3, $4, $5)',
+            [studioId, date, `${hour}:00:00`, `${hour+1}:00:00`, false]
+          );
+        }
+        
+        // Commit transaction
+        await pool.query('COMMIT');
+        console.log(`Generated slots for studio ID ${studioId} on ${date}`);
+      } catch (error) {
+        await pool.query('ROLLBACK');
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error ensuring slots exist:', error);
+      throw error;
+    }
+  }
+
+  // Rest of your existing methods remain unchanged...
   
   // Get all slots by studio (admin function)
   async getAllSlotsByStudio(req, res) {
@@ -211,6 +266,76 @@ class SlotController {
       res.status(500).json({ message: 'Server error' });
     }
   }
+
+  // Add this method to your SlotController class
+
+// Generate slots for a specific studio
+async generateSlotsForStudio(req, res) {
+  try {
+    const { studioId } = req.params;
+    const daysAhead = req.query.days ? parseInt(req.query.days) : 7;
+    
+    // Check if studio exists
+    const studioCheck = await pool.query('SELECT * FROM studios WHERE id = $1', [studioId]);
+    if (studioCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Studio not found' });
+    }
+    
+    // Get studio opening/closing hours
+    const studio = studioCheck.rows[0];
+    const openingHour = studio.opening_hour || 9;
+    const closingHour = studio.closing_hour || 18;
+    
+    // Begin transaction
+    await pool.query('BEGIN');
+    
+    try {
+      const createdSlots = [];
+      
+      // Generate slots for the specified number of days
+      for (let day = 0; day < daysAhead; day++) {
+        const slotDate = new Date();
+        slotDate.setDate(slotDate.getDate() + day);
+        const formattedDate = slotDate.toISOString().split('T')[0];
+        
+        // Check if slots already exist for this date and studio
+        const existingCheck = await pool.query(
+          'SELECT COUNT(*) FROM slots WHERE studio_id = $1 AND date = $2',
+          [studioId, formattedDate]
+        );
+        
+        // Skip if slots already exist for this date
+        if (existingCheck.rows[0].count > 0) {
+          continue;
+        }
+        
+        // Generate hourly slots from opening to closing hour
+        for (let hour = openingHour; hour < closingHour; hour++) {
+          const result = await pool.query(
+            'INSERT INTO slots (studio_id, date, start_time, end_time, is_booked) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [studioId, formattedDate, `${hour}:00:00`, `${hour+1}:00:00`, false]
+          );
+          
+          createdSlots.push(result.rows[0]);
+        }
+      }
+      
+      // Commit transaction
+      await pool.query('COMMIT');
+      
+      res.status(201).json({ 
+        message: `Generated ${createdSlots.length} slots for studio ID ${studioId}`,
+        slots: createdSlots
+      });
+    } catch (error) {
+      await pool.query('ROLLBACK');
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error generating slots for studio:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+}
 }
 
 export default new SlotController();

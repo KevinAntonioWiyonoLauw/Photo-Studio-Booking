@@ -1,23 +1,25 @@
 import express from 'express';
 import bookingController from '../controllers/bookingController.js';
-import protect from '../middlewares/authMiddleware.js';
+import authMiddleware from '../middlewares/authMiddleware.js';
 import adminMiddleware from '../middlewares/adminMiddleware.js';
-import bookingLimiter from '../middlewares/rateLimiter.js';
 
 const router = express.Router();
 
-// All routes need authentication
-router.use(protect);
+// PUBLIC ROUTES
+// Add this route before any routes with parameters like :id
+router.get('/available-hours', bookingController.getAvailableHours);
+router.get('/booked-slots', bookingController.getBookedSlots);
 
-// User Routes
-// Apply rate limiter to booking creation
-router.post('/', bookingLimiter, bookingController.createBooking);
-router.get('/', bookingController.getUserBookings);
-router.get('/:id', bookingController.getBookingById);
-router.put('/:id/cancel', bookingController.cancelBooking);
+// USER ROUTES - These require authentication
+router.post('/', authMiddleware, bookingController.createBooking);
+router.get('/', authMiddleware, bookingController.getUserBookings);
 
-// Admin Routes
-router.get('/admin/all', adminMiddleware, bookingController.getAllBookings);
-router.put('/:id/status', adminMiddleware, bookingController.updateBookingStatus);
+// Make sure the parameter routes come AFTER specific routes
+router.get('/:id', authMiddleware, bookingController.getBookingById);
+router.put('/:id/cancel', authMiddleware, bookingController.cancelBooking);
+
+// ADMIN ROUTES
+router.get('/admin/all', authMiddleware, adminMiddleware, bookingController.getAllBookings);
+router.put('/:id/status', authMiddleware, adminMiddleware, bookingController.updateBookingStatus);
 
 export default router;

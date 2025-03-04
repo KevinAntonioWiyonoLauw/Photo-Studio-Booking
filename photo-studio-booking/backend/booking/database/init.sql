@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS studios (
   name VARCHAR(100) NOT NULL,
   description TEXT,
   image_url VARCHAR(255),
+  opening_hour INTEGER DEFAULT 9,
+  closing_hour INTEGER DEFAULT 18,
+  active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -13,11 +16,11 @@ CREATE TABLE IF NOT EXISTS studios (
 CREATE TABLE IF NOT EXISTS packages (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
-  price DECIMAL(10, 2) NOT NULL,
   description TEXT,
-  duration INTEGER NOT NULL,         -- Ganti "duration_minutes" dengan "duration" agar konsisten dengan kode
+  price DECIMAL(10, 2) NOT NULL,
+  duration INTEGER NOT NULL,
   studio_id INTEGER REFERENCES studios(id),
-  features TEXT,                     -- Tambahkan kolom features jika diperlukan
+  features TEXT[],
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -28,7 +31,7 @@ CREATE TABLE IF NOT EXISTS slots (
   date DATE NOT NULL,
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
-  is_available BOOLEAN DEFAULT true,
+  is_booked BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(studio_id, date, start_time)
 );
@@ -38,8 +41,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL,
   studio_id INTEGER REFERENCES studios(id),
-  package_id INTEGER REFERENCES packages(id),
-  slot_id INTEGER REFERENCES slots(id),
+  package_id INTEGER REFERENCES packages(id), 
+  slot_id INTEGER REFERENCES slots(id),       
   booking_date DATE NOT NULL,
   status VARCHAR(20) DEFAULT 'pending',
   total_price DECIMAL(10, 2) NOT NULL,
