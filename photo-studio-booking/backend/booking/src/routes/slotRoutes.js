@@ -15,4 +15,7 @@ router.post('/batch', authMiddleware, adminMiddleware, slotController.batchCreat
 router.put('/:id', authMiddleware, adminMiddleware, slotController.updateSlot);
 router.delete('/:id', authMiddleware, adminMiddleware, slotController.deleteSlot);
 
+// Add this new route for automatically generating slots
+router.post('/studio/:studioId/generate', authMiddleware, adminMiddleware, slotController.generateSlotsForStudio);
+
 export default router;
