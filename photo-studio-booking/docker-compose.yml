@@ -1,0 +1,90 @@
+version: '3.8'
+services:
+  # Auth Service
+  auth-service-db:
+    container_name: photo-studio-auth-db
+    image: postgres:17.2-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=authuser
+      - POSTGRES_PASSWORD=authpassword
+      - POSTGRES_DB=auth_service_db
+    ports:
+      - "5432:5432"  # Perlu diperhatikan port clash dengan booking-db
+    volumes:
+      - auth_data:/var/lib/postgresql/data
+      - ./backend/auth-service/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authuser -d auth_service_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - photostudio-network
+
+  auth-service-api:
+    build:
+      context: ./backend/auth-service
+    env_file:
+      - ./backend/auth-service/.env
+    ports:
+      - "4000:4000"
+    depends_on:
+      auth-service-db:
+        condition: service_healthy
+    networks:
+      - photostudio-network
+
+  # Booking Service
+  booking-db:
+    container_name: photo-studio-booking-db
+    image: postgres:17.2-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=bookinguser
+      - POSTGRES_PASSWORD=bookingpassword
+      - POSTGRES_DB=booking_db
+    ports:
+      - "5433:5432"  # Gunakan port berbeda untuk host (5433) karena 5432 sudah digunakan oleh auth-service-db
+    volumes:
+      - booking_data:/var/lib/postgresql/data
+      - ./backend/booking/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bookinguser -d booking_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - photostudio-network
+
+  booking-api:
+    build:
+      context: ./backend/booking
+    env_file:
+      - ./backend/booking/.env
+    ports:
+      - "5000:5000"
+    depends_on:
+      booking-db:
+        condition: service_healthy
+    networks:
+      - photostudio-network
+
+  # Frontend
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - auth-service-api
+  #     - booking-api
+  #   networks:
+  #     - photostudio-network
+
+networks:
+  photostudio-network:
+
+volumes:
+  auth_data:
+  booking_data:
