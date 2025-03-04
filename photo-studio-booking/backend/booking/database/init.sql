@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS packages (
   name VARCHAR(100) NOT NULL,
   price DECIMAL(10, 2) NOT NULL,
   description TEXT,
-  duration_minutes INTEGER NOT NULL,
+  duration INTEGER NOT NULL,         -- Ganti "duration_minutes" dengan "duration" agar konsisten dengan kode
+  studio_id INTEGER REFERENCES studios(id),
+  features TEXT,                     -- Tambahkan kolom features jika diperlukan
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -51,7 +53,7 @@ INSERT INTO studios (name, description, image_url) VALUES
 ('Studio B', 'Cozy studio perfect for portrait photography', 'https://example.com/studio-b.jpg'),
 ('Studio C', 'Large studio for group photoshoots', 'https://example.com/studio-c.jpg');
 
-INSERT INTO packages (name, price, description, duration_minutes) VALUES
+INSERT INTO packages (name, price, description, duration) VALUES
 ('Basic', 150000, 'Simple photoshoot with 5 edited photos', 60),
 ('Standard', 300000, 'Professional photoshoot with 10 edited photos', 90),
 ('Premium', 500000, 'Complete photoshoot experience with 20 edited photos and printed album', 120);
